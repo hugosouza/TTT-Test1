@@ -10,6 +10,7 @@ TicTacToe::TicTacToe(int16_t lw, int16_t ms) : lineWidth(lw), markSize(ms) {
     center.y = (VisibleRect::leftTop().y - VisibleRect::leftBottom().y)/2;
     board00.x = center.x-halfMark-markSize;
     board00.y = center.y-halfMark-markSize-lineWidth;
+    lastState = MARK_STATE_EMPTY;
 
     CCLog("center.x: %.02f, center.y: %.02f\n", center.x, center.y);
 
@@ -24,13 +25,15 @@ TicTacToe::TicTacToe(int16_t lw, int16_t ms) : lineWidth(lw), markSize(ms) {
     //markList.push_back(m);
 
     //
-    for (int i = 1; i <= 3; i++) {
-        for (int j = 1; j <= 3; j++) {
+    for (uint16_t i = 1; i <= 3; i++) {
+        for (uint16_t j = 1; j <= 3; j++) {
             Mark* m = Mark::markWithTexture(markEmptyTexture1, this);
-            CCLog("m: %X", m);
             m->setPosition(m->getCoordsForPosition(j,i));
             addChild(m);
-            markList.push_back(m);
+            if ((uint16_t)markList.size() <= i-1) {
+                markList.push_back(std::vector<Mark*>());
+            }
+            markList[i-1].push_back(m);
         }
     }
 
@@ -99,6 +102,14 @@ void TicTacToe::draw() {
 
 }
 
+void TicTacToe::setLastState(MARK_STATE state) {
+    lastState = state;
+}
+
+MARK_STATE TicTacToe::getLastState() {
+    return lastState;
+}
+
 Mark::Mark(TicTacToe* _b, int16_t _x, int16_t _y) : x(_x), y(_y), board(_b), state(MARK_STATE_EMPTY) {
 }
 
@@ -146,7 +157,10 @@ bool Mark::ccTouchBegan(CCTouch* touch, CCEvent* event) {
 void Mark::ccTouchEnded(CCTouch* touch, CCEvent* event) {
     //CCAssert(m_state == kPaddleStateGrabbed, L"Paddle - Unexpected state!");    
     CCLog("Mark::ccTouchEnded(): called");
-    switch (state) {
+    if (state != MARK_STATE_EMPTY && board->getLastState() != MARK_STATE_EMPTY) {
+        return;
+    }
+    switch (board->getLastState()) {
         case MARK_STATE_EMPTY:
             setTexture(CCTextureCache::sharedTextureCache()->addImage(TTTx));
             state = MARK_STATE_X;
@@ -156,10 +170,11 @@ void Mark::ccTouchEnded(CCTouch* touch, CCEvent* event) {
             state = MARK_STATE_O;
             break;
         case MARK_STATE_O:
-            setTexture(CCTextureCache::sharedTextureCache()->addImage(TTTempty));
-            state = MARK_STATE_EMPTY;
+            setTexture(CCTextureCache::sharedTextureCache()->addImage(TTTx));
+            state = MARK_STATE_X;
             break;
     }
+    board->setLastState(state);
 }
 
 CCPoint Mark::getCoordsForPosition(int16_t x, int16_t y) {
@@ -175,7 +190,6 @@ CCPoint Mark::getCoordsForPosition(int16_t x, int16_t y) {
     return p;
 }
 
-bool Mark::containsTouchLocation(CCTouch* touch)
-{
+bool Mark::containsTouchLocation(CCTouch* touch) {
     return rect().containsPoint(convertTouchToNodeSpaceAR(touch));
 }

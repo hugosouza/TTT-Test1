@@ -55,6 +55,8 @@ public:
     int16_t getLineWidth();
     CCPoint getCenter();
     CCPoint getBoard00();
+    void setLastState(MARK_STATE state);
+    MARK_STATE getLastState();
     //void menuCallback(CCObject* pSender);
 private:
     CCPoint center;
@@ -63,8 +65,8 @@ private:
     Mark* m1;
     int16_t lineWidth;
     int16_t markSize;
-    vector<Mark*> markList;
-
+    vector<vector<Mark*>> markList;
+    MARK_STATE lastState;
 };
 
 #endif
