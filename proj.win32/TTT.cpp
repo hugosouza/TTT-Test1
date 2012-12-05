@@ -27,7 +27,7 @@ TicTacToe::TicTacToe(int16_t lw, int16_t ms) : lineWidth(lw), markSize(ms) {
     //
     for (uint16_t i = 1; i <= 3; i++) {
         for (uint16_t j = 1; j <= 3; j++) {
-            Mark* m = Mark::markWithTexture(markEmptyTexture1, this);
+            Mark* m = Mark::markWithTexture(markEmptyTexture1, this, j-1, i-1);
             m->setPosition(m->getCoordsForPosition(j,i));
             addChild(m);
             if ((uint16_t)markList.size() <= i-1) {
@@ -37,8 +37,14 @@ TicTacToe::TicTacToe(int16_t lw, int16_t ms) : lineWidth(lw), markSize(ms) {
         }
     }
 
+    CCNotificationCenter::sharedNotificationCenter()->addObserver(this, callfuncO_selector(TicTacToe::boardUpdate), BOARD_UPDATED, NULL);
+
     //ccDrawLine(ccp(center.x-halfMark-markSize-lineWidth, VisibleRect::leftTop().y), ccp(center.x-halfMark-markSize-lineWidth, VisibleRect::leftBottom().y));
     //ccDrawLine(ccp(VisibleRect::leftTop().x, center.y+halfMark+markSize+lineWidth), ccp(VisibleRect::rightTop().x, center.y+halfMark+markSize+lineWidth));
+}
+
+TicTacToe::~TicTacToe() {
+    CCNotificationCenter::sharedNotificationCenter()->removeObserver(this, BOARD_UPDATED);
 }
 
 int16_t TicTacToe::getMarkSize() {
@@ -96,10 +102,8 @@ void TicTacToe::draw() {
     //    }
     //}
 
-
     ccDrawLine(ccp(board00.x, VisibleRect::leftTop().y), ccp(board00.x, VisibleRect::leftBottom().y));
     ccDrawLine(ccp(VisibleRect::leftTop().x, board00.y), ccp(VisibleRect::rightTop().x, board00.y));
-
 }
 
 void TicTacToe::setLastState(MARK_STATE state) {
@@ -108,6 +112,86 @@ void TicTacToe::setLastState(MARK_STATE state) {
 
 MARK_STATE TicTacToe::getLastState() {
     return lastState;
+}
+
+void TicTacToe::boardUpdate(CCObject* obj) {
+    CCLog("Board updated message rcvd, state: %d", ((Mark*)obj)->getState());
+    for (auto line : markList) {
+        CCLog("[(%d,%d):%d (%d,%d):%d (%d,%d):%d]", 
+            line[0]->getX(), line[0]->getY(), line[0]->getState(),
+            line[1]->getX(), line[1]->getY(), line[1]->getState(),
+            line[2]->getX(), line[2]->getY(), line[2]->getState());
+    }
+    checkForWinner(obj);
+}
+
+MARK_STATE TicTacToe::getStateForPos(int16_t x, int16_t y) {
+    if ((x < 0) || (x > 2) || (y < 0) || (y > 2)) {
+        return MARK_STATE_EMPTY;
+    }
+    return markList[x][y]->getState();
+}
+
+std::vector<MARK_STATE> TicTacToe::getLineState(int16_t x, int16_t y, LINE_DIRECTION direction) {
+    int16_t xStep = 0, yStep = 0, xStart = 0, yStart = 0;
+    std::vector<MARK_STATE> states;
+    switch (direction) {
+        case DIR_VERTICAL:
+            xStep = 0; yStep = -1; xStart = x; yStart = y+2;
+            break;
+        case DIR_DIAGONAL_RIGHT:
+            xStep = 1; yStep = -1; xStart = x-2; yStart = y-2;
+            break;
+        case DIR_HORIZONTAL:
+            xStep = 1; yStep = 0; xStart = x-2; yStart = y;
+            break;
+        case DIR_DIAGONAL_LEFT:
+            xStep = 1; yStep = 1; xStart = x-2; yStart = y+2;
+            break;
+    }
+    int16_t tx = xStart, ty = yStart;
+    CCLog("start ==> x: %d, y: %d", tx, ty);
+    for (int c = 0; c <= 4; c++) {
+        states.push_back(getStateForPos(tx, ty));
+        CCLog("tx: %d, ty: %d => %d", tx, ty, (getStateForPos(tx, ty)));
+        tx += xStep;
+        ty += yStep;
+    }
+    return states;
+}
+
+
+bool TicTacToe::checkForWinner(CCObject* obj) {
+    Mark* m = (Mark*) obj;
+    CCLog("checking line with [%d, %d]: %d", m->getX(), m->getY(), m->getState());
+    for (auto s : getLineState(m->getX(), m->getY(), DIR_VERTICAL)) {
+        CCLog("--> [%d]", s);
+    }
+    return false;
+}
+
+int16_t checkFor3Marks(std::vector<MARK_STATE> marks) {
+    MARK_STATE prev = MARK_STATE_EMPTY;
+    int c = 0;
+    int i = 0, start = 0;
+    for (auto m : marks) {
+        if (m == MARK_STATE_EMPTY) {
+            continue;
+        } else if (m == prev) {
+            ++c;
+        } else if (m != prev) {
+            prev = m;
+            c = 1;
+            start = i;
+        }
+        i++;
+    }
+    return (c == 2 ? start : -1);
+}
+
+
+MARK_STATE Mark::getState() {
+    return state;
 }
 
 Mark::Mark(TicTacToe* _b, int16_t _x, int16_t _y) : x(_x), y(_y), board(_b), state(MARK_STATE_EMPTY) {
@@ -141,8 +225,8 @@ bool Mark::initWithTexture(CCTexture2D* aTexture) {
     return true;
 }
 
-Mark* Mark::markWithTexture(CCTexture2D* aTexture, TicTacToe* board) {
-    Mark* pMark = new Mark(board);
+Mark* Mark::markWithTexture(CCTexture2D* aTexture, TicTacToe* board, int16_t x, int16_t y) {
+    Mark* pMark = new Mark(board, x, y);
     pMark->initWithTexture(aTexture);
     pMark->autorelease();
     return pMark;
@@ -150,7 +234,7 @@ Mark* Mark::markWithTexture(CCTexture2D* aTexture, TicTacToe* board) {
 
 bool Mark::ccTouchBegan(CCTouch* touch, CCEvent* event) {
     CCLog("Mark::ccTouchBegan(): called");
-    if ( !containsTouchLocation(touch) ) return false;
+    if (!containsTouchLocation(touch)) return false;
     return true;
 }
 
@@ -175,6 +259,7 @@ void Mark::ccTouchEnded(CCTouch* touch, CCEvent* event) {
             break;
     }
     board->setLastState(state);
+    CCNotificationCenter::sharedNotificationCenter()->postNotification(BOARD_UPDATED, this);
 }
 
 CCPoint Mark::getCoordsForPosition(int16_t x, int16_t y) {
@@ -192,4 +277,12 @@ CCPoint Mark::getCoordsForPosition(int16_t x, int16_t y) {
 
 bool Mark::containsTouchLocation(CCTouch* touch) {
     return rect().containsPoint(convertTouchToNodeSpaceAR(touch));
+}
+
+int16_t Mark::getX() {
+    return x;
+}
+
+int16_t Mark::getY() {
+    return y;
 }
