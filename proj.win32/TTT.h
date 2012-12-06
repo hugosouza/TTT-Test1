@@ -2,6 +2,7 @@
 #define _TTT_H_
 
 #include <vector>
+#include <algorithm>
 
 #include "cocos2d.h"
 #include "VisibleRect.h"
@@ -27,6 +28,7 @@ enum LINE_DIRECTION {
     DIR_DIAGONAL_RIGHT,
     DIR_HORIZONTAL,
     DIR_DIAGONAL_LEFT,
+    DIR_END,
 };
 
 class Mark : public CCSprite, public CCTargetedTouchDelegate {

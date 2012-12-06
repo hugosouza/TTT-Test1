@@ -26,14 +26,15 @@ TicTacToe::TicTacToe(int16_t lw, int16_t ms) : lineWidth(lw), markSize(ms) {
 
     //
     for (uint16_t i = 1; i <= 3; i++) {
-        for (uint16_t j = 1; j <= 3; j++) {
-            Mark* m = Mark::markWithTexture(markEmptyTexture1, this, j-1, i-1);
-            m->setPosition(m->getCoordsForPosition(j,i));
+        markList.push_back(std::vector<Mark*>());
+    }
+
+    for (uint16_t y = 1; y <= 3; y++) {
+        for (uint16_t x = 1; x <= 3; x++) {
+            Mark* m = Mark::markWithTexture(markEmptyTexture1, this, x-1, y-1);
+            m->setPosition(m->getCoordsForPosition(x,y));
             addChild(m);
-            if ((uint16_t)markList.size() <= i-1) {
-                markList.push_back(std::vector<Mark*>());
-            }
-            markList[i-1].push_back(m);
+            markList[x-1].push_back(m);
         }
     }
 
@@ -116,11 +117,11 @@ MARK_STATE TicTacToe::getLastState() {
 
 void TicTacToe::boardUpdate(CCObject* obj) {
     CCLog("Board updated message rcvd, state: %d", ((Mark*)obj)->getState());
-    for (auto line : markList) {
-        CCLog("[(%d,%d):%d (%d,%d):%d (%d,%d):%d]", 
-            line[0]->getX(), line[0]->getY(), line[0]->getState(),
-            line[1]->getX(), line[1]->getY(), line[1]->getState(),
-            line[2]->getX(), line[2]->getY(), line[2]->getState());
+    for (int16_t y = 0; y < 3; y++) {
+        CCLog("[(0,%d):%d (1,%d):%d (2,%d):%d]", 
+            y, markList[0][y]->getState(),
+            y, markList[1][y]->getState(),
+            y, markList[2][y]->getState());
     }
     checkForWinner(obj);
 }
@@ -129,6 +130,7 @@ MARK_STATE TicTacToe::getStateForPos(int16_t x, int16_t y) {
     if ((x < 0) || (x > 2) || (y < 0) || (y > 2)) {
         return MARK_STATE_EMPTY;
     }
+    //CCLog("Getting state for %d,%d: %d", x, y, markList[x][y]->getState());
     return markList[x][y]->getState();
 }
 
@@ -140,37 +142,36 @@ std::vector<MARK_STATE> TicTacToe::getLineState(int16_t x, int16_t y, LINE_DIREC
             xStep = 0; yStep = -1; xStart = x; yStart = y+2;
             break;
         case DIR_DIAGONAL_RIGHT:
-            xStep = 1; yStep = -1; xStart = x-2; yStart = y-2;
+            xStep = 1; yStep = 1; xStart = x-2; yStart = y-2;
             break;
         case DIR_HORIZONTAL:
             xStep = 1; yStep = 0; xStart = x-2; yStart = y;
             break;
         case DIR_DIAGONAL_LEFT:
-            xStep = 1; yStep = 1; xStart = x-2; yStart = y+2;
+            xStep = 1; yStep = -1; xStart = x-2; yStart = y+2;
             break;
     }
     int16_t tx = xStart, ty = yStart;
-    CCLog("start ==> x: %d, y: %d", tx, ty);
     for (int c = 0; c <= 4; c++) {
         states.push_back(getStateForPos(tx, ty));
-        CCLog("tx: %d, ty: %d => %d", tx, ty, (getStateForPos(tx, ty)));
+        CCLog("[%d,%d]: %d", tx, ty, getStateForPos(tx, ty));
         tx += xStep;
         ty += yStep;
     }
     return states;
 }
 
-
 bool TicTacToe::checkForWinner(CCObject* obj) {
     Mark* m = (Mark*) obj;
     CCLog("checking line with [%d, %d]: %d", m->getX(), m->getY(), m->getState());
-    for (auto s : getLineState(m->getX(), m->getY(), DIR_VERTICAL)) {
-        CCLog("--> [%d]", s);
+    for(int16_t d = 0; d < DIR_END; d++) {
+        auto s = getLineState(m->getX(), m->getY(), LINE_DIRECTION(d));
+        CCLog("Found winner: %s", checkFor3Marks(s) >= 0 ? "yes" : "no");
     }
     return false;
 }
 
-int16_t checkFor3Marks(std::vector<MARK_STATE> marks) {
+int16_t TicTacToe::checkFor3Marks(std::vector<MARK_STATE> marks) {
     MARK_STATE prev = MARK_STATE_EMPTY;
     int c = 0;
     int i = 0, start = 0;
@@ -186,7 +187,8 @@ int16_t checkFor3Marks(std::vector<MARK_STATE> marks) {
         }
         i++;
     }
-    return (c == 2 ? start : -1);
+    CCLog("[%d,%d,%d,%d,%d]: %s", marks[0], marks[1], marks[2], marks[3], marks[4], c>2?"yes":"no");
+    return (c > 2 ? start : -1);
 }
 
 
@@ -208,7 +210,6 @@ CCRect Mark::rect() {
 void Mark::onEnter() {
     CCDirector* pDirector = CCDirector::sharedDirector();
     pDirector->getTouchDispatcher()->addTargetedDelegate(this, 0, true);
-    //CCLog("mark::onEnter(): called");
     CCSprite::onEnter();
 }
 
@@ -233,14 +234,14 @@ Mark* Mark::markWithTexture(CCTexture2D* aTexture, TicTacToe* board, int16_t x, 
 }
 
 bool Mark::ccTouchBegan(CCTouch* touch, CCEvent* event) {
-    CCLog("Mark::ccTouchBegan(): called");
+    //CCLog("Mark::ccTouchBegan(): called");
     if (!containsTouchLocation(touch)) return false;
     return true;
 }
 
 void Mark::ccTouchEnded(CCTouch* touch, CCEvent* event) {
     //CCAssert(m_state == kPaddleStateGrabbed, L"Paddle - Unexpected state!");    
-    CCLog("Mark::ccTouchEnded(): called");
+    //CCLog("Mark::ccTouchEnded(): called");
     if (state != MARK_STATE_EMPTY && board->getLastState() != MARK_STATE_EMPTY) {
         return;
     }
@@ -271,7 +272,7 @@ CCPoint Mark::getCoordsForPosition(int16_t x, int16_t y) {
 
     p.x = c.x+((x-1)*markSize)+halfSize;
     p.y = c.y+((3-y)*markSize)+halfSize;
-    CCLog("p.x: %.02f p.y: %02.f", p.x, p.y);
+    //CCLog("p.x: %.02f p.y: %02.f", p.x, p.y);
     return p;
 }
 
