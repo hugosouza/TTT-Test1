@@ -72,6 +72,7 @@ public:
     CCPoint getBoard00();
     void setLastState(MARK_STATE state);
     MARK_STATE getLastState();
+    void drawWinLine(int16_t x, int16_t y, LINE_DIRECTION d, Mark* m);
 private:
     CCPoint center;
     CCPoint board00;
@@ -86,6 +87,8 @@ private:
     bool checkForWinner(CCObject* obj);
     int16_t checkFor3Marks(std::vector<MARK_STATE>);
     std::vector<MARK_STATE> getLineState(int16_t x, int16_t y, LINE_DIRECTION d);
+    bool foundWinner;
+    CCPoint winnerStart, winnerEnd;
 };
 
 #endif

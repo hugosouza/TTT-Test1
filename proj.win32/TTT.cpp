@@ -11,6 +11,7 @@ TicTacToe::TicTacToe(int16_t lw, int16_t ms) : lineWidth(lw), markSize(ms) {
     board00.x = center.x-halfMark-markSize;
     board00.y = center.y-halfMark-markSize-lineWidth;
     lastState = MARK_STATE_EMPTY;
+    foundWinner = false;
 
     CCLog("center.x: %.02f, center.y: %.02f\n", center.x, center.y);
 
@@ -105,6 +106,12 @@ void TicTacToe::draw() {
 
     ccDrawLine(ccp(board00.x, VisibleRect::leftTop().y), ccp(board00.x, VisibleRect::leftBottom().y));
     ccDrawLine(ccp(VisibleRect::leftTop().x, board00.y), ccp(VisibleRect::rightTop().x, board00.y));
+
+    if (foundWinner) {
+        glLineWidth(10);
+        ccDrawColor4B(255,0,0,255);
+        ccDrawLine(winnerStart, winnerEnd);
+    }
 }
 
 void TicTacToe::setLastState(MARK_STATE state) {
@@ -142,13 +149,13 @@ std::vector<MARK_STATE> TicTacToe::getLineState(int16_t x, int16_t y, LINE_DIREC
             xStep = 0; yStep = -1; xStart = x; yStart = y+2;
             break;
         case DIR_DIAGONAL_RIGHT:
-            xStep = 1; yStep = 1; xStart = x-2; yStart = y-2;
+            xStep = 1; yStep = -1; xStart = x-2; yStart = y+2;
             break;
         case DIR_HORIZONTAL:
             xStep = 1; yStep = 0; xStart = x-2; yStart = y;
             break;
         case DIR_DIAGONAL_LEFT:
-            xStep = 1; yStep = -1; xStart = x-2; yStart = y+2;
+            xStep = 1; yStep = 1; xStart = x-2; yStart = y-2;
             break;
     }
     int16_t tx = xStart, ty = yStart;
@@ -164,10 +171,19 @@ std::vector<MARK_STATE> TicTacToe::getLineState(int16_t x, int16_t y, LINE_DIREC
 bool TicTacToe::checkForWinner(CCObject* obj) {
     Mark* m = (Mark*) obj;
     CCLog("checking line with [%d, %d]: %d", m->getX(), m->getY(), m->getState());
+    int16_t winner = -1;
+    LINE_DIRECTION dir;
     for(int16_t d = 0; d < DIR_END; d++) {
-        auto s = getLineState(m->getX(), m->getY(), LINE_DIRECTION(d));
-        CCLog("Found winner: %s", checkFor3Marks(s) >= 0 ? "yes" : "no");
+        dir = LINE_DIRECTION(d);
+        auto s = getLineState(m->getX(), m->getY(), dir);
+        winner = checkFor3Marks(s);
+        CCLog("dir: %d, winner: %d", dir, winner);
+        if (winner >= 0) break;
     }
+    if (winner>=0) {
+        drawWinLine(m->getX(), m->getY(), dir, m);
+    }
+    CCLog("Found winner: %s (%d)", winner >= 0 ? "yes" : "no", winner);
     return false;
 }
 
@@ -189,6 +205,39 @@ int16_t TicTacToe::checkFor3Marks(std::vector<MARK_STATE> marks) {
     }
     CCLog("[%d,%d,%d,%d,%d]: %s", marks[0], marks[1], marks[2], marks[3], marks[4], c>2?"yes":"no");
     return (c > 2 ? start : -1);
+}
+
+void TicTacToe::drawWinLine(int16_t x, int16_t y, LINE_DIRECTION d, Mark* m) {
+    int16_t startX, startY, endX, endY;
+    switch (d) {
+        case DIR_HORIZONTAL:
+            startX = 0;
+            endX = 2;
+            startY = endY = y;
+            break;
+        case DIR_VERTICAL:
+            startX = endX = x;
+            startY = 0;
+            endY = 2;
+            break;
+        case DIR_DIAGONAL_RIGHT:
+            startX = 0;
+            startY = 2;
+            endX = 2;
+            endY = 0;
+            break;
+        case DIR_DIAGONAL_LEFT:
+            startX = 0;
+            startY = 0;
+            endX = 2;
+            endY = 2;
+            break;
+    }
+    CCLog("(%d,%d - %d): Winner line from (%d,%d) to (%d,%d)", x, y, d, startX, startY, endX, endY);
+    foundWinner = true;
+    winnerStart = m->getCoordsForPosition(startX+1, startY+1);
+    winnerEnd = m->getCoordsForPosition(endX+1, endY+1);
+    CCLog("Line from (%.02f,%.02f) to (%.02f, %.02f)", winnerStart.x, winnerStart.y, winnerEnd.x, winnerEnd.y);
 }
 
 
